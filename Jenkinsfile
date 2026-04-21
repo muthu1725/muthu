@@ -1,6 +1,10 @@
 pipeline {
   agent any
 
+  tools {
+    sonarScanner 'SonarScanner'
+  }
+
   options {
     disableConcurrentBuilds()
     timestamps()
@@ -14,7 +18,7 @@ pipeline {
 
   environment {
     AWS_REGION     = "eu-west-1"
-    AWS_ACCOUNT_ID= "102461617910"
+    AWS_ACCOUNT_ID = "102461617910"
 
     REPO_NAME     = "week2-sample-app"
     ECR_REPO      = "102461617910.dkr.ecr.eu-west-1.amazonaws.com/ecs-rds-test-sample-app"
@@ -28,7 +32,8 @@ pipeline {
     SONARQUBE_SERVER  = "sonar"
     SONAR_PROJECT_KEY = "week2-sample-app"
 
-    SNYK_TOKEN = "a0d93a0b-9393-471c-8e8a-9280d565abf5"
+    // ✅ Recommended: store this in Jenkins Credentials (Secret Text) with ID: snyk-token
+    SNYK_TOKEN = credentials('snyk-token')
   }
 
   stages {
@@ -88,8 +93,6 @@ pipeline {
       }
     }
 
-    /* ✅✅ NEW STAGES FOR TRIVY ✅✅ */
-
     stage('Install Trivy') {
       steps {
         sh '''
@@ -141,14 +144,13 @@ pipeline {
 
   post {
     success {
-      echo "Pipeline SUCCESS – Image deployed to ECS"
+      echo "Pipeline SUCCESS - Image deployed to ECS"
     }
     failure {
-      echo "Pipeline FAILED – Check Sonar/Snyk/Trivy results"
+      echo "Pipeline FAILED - Check Sonar/Snyk/Trivy results"
     }
     always {
       cleanWs()
     }
   }
 }
-
