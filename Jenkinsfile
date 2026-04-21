@@ -144,11 +144,11 @@ pipeline {
       echo "Pipeline SUCCESS – Image deployed to ECS"
     }
     failure {
-      echo "❌ Pipeline FAILED – Check Sonar/Snyk/Trivy results"
+      echo "Pipeline FAILED – Check Sonar/Snyk/Trivy results"
     }
     always {
       cleanWs()
     }
   }
 }
-``
+
