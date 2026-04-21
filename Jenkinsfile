@@ -31,7 +31,7 @@ pipeline {
     // SonarQube reachable from Jenkins EC2
     SONAR_URL = 'http://10.8.54.92:9000'
 
-    // Jenkins credentials IDs (these should be credential IDs, not the raw tokens)
+    // Jenkins credentials IDs (NOTE: these must be Jenkins Credential IDs)
     SONAR_TOKEN_CRED_ID = 'squ_3833ea7189fe32152909d806de1880d49ac571f4'
     SNYK_TOKEN_CRED_ID  = 'a0d93a0b-9393-471c-8e8a-9280d565abf5'
   }
@@ -59,23 +59,25 @@ pipeline {
           def scannerHome = tool 'Sonar'
           withSonarQubeEnv("${SONARQUBE_SERVER}") {
             withEnv(["PATH+SONAR=${scannerHome}/bin"]) {
-              sh """
+              sh '''
                 set -e
                 sonar-scanner \
                   -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                   -Dsonar.sources=.
-              """
+              '''
             }
           }
         }
       }
     }
 
+    // ✅ Quality Gate PASS/FAIL controlled by Jenkinsfile (Polling)
+    // FIX: use triple-single-quotes so Groovy will NOT treat $STATUS / $RESP as Groovy variables
     stage('Quality Gate (Poll)') {
       steps {
         withCredentials([string(credentialsId: "${SONAR_TOKEN_CRED_ID}", variable: 'SONAR_TOKEN')]) {
           timeout(time: 20, unit: 'MINUTES') {
-            sh """
+            sh '''
               set -e
               while true; do
                 RESP=$(curl -s -u "${SONAR_TOKEN}:" \
@@ -95,7 +97,7 @@ pipeline {
                 echo "⏳ Quality Gate still $STATUS, waiting..."
                 sleep 15
               done
-            """
+            '''
           }
         }
       }
