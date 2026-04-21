@@ -28,16 +28,20 @@ pipeline {
     SONARQUBE_SERVER  = "sonar"
     SONAR_PROJECT_KEY = "week2-sample-app"
 
-    // ⚠️ Recommended to move to Jenkins Credentials (Secret text)
+    // ✅ SonarQube URL (reachable from Jenkins EC2)
+    SONAR_URL = "http://10.8.54.92:9000"
+
+    // ✅ Recommended: store SONAR token in Jenkins Credentials (Secret text) with ID: sonar-token
+    SONAR_TOKEN = credentials('sonar-token')
+
+    // ⚠️ Recommended to move to Jenkins Credentials (Secret text) with ID: snyk-token
     SNYK_TOKEN = "a0d93a0b-9393-471c-8e8a-9280d565abf5"
   }
 
   stages {
 
     stage('Checkout') {
-      steps {
-        checkout scm
-      }
+      steps { checkout scm }
     }
 
     stage('Build (Python)') {
@@ -66,13 +70,41 @@ pipeline {
       }
     }
 
-    // ✅ ✅ FIXED & RESILIENT QUALITY GATE
-    stage('Quality Gate') {
+    stage('Install jq (if missing)') {
       steps {
-        timeout(time: 10, unit: 'MINUTES') {
-          retry(2) {
-            waitForQualityGate abortPipeline: true
-          }
+        sh '''
+          if ! command -v jq >/dev/null 2>&1; then
+            echo "jq not found, installing..."
+            sudo yum install -y jq || sudo apt-get update && sudo apt-get install -y jq
+          else
+            echo "jq already installed"
+          fi
+        '''
+      }
+    }
+
+    // ✅ ✅ Quality Gate using Polling (No Webhook dependency)
+    stage('Quality Gate (Poll)') {
+      steps {
+        timeout(time: 20, unit: 'MINUTES') {
+          sh """
+            while true; do
+              STATUS=\$(curl -s -u ${SONAR_TOKEN}: \\
+                ${SONAR_URL}/api/qualitygates/project_status?projectKey=${SONAR_PROJECT_KEY} \\
+                | jq -r '.projectStatus.status')
+
+              if [ "\$STATUS" = "OK" ]; then
+                echo "Quality Gate PASSED"
+                break
+              elif [ "\$STATUS" = "ERROR" ]; then
+                echo "Quality Gate FAILED"
+                exit 1
+              fi
+
+              echo "Quality Gate still \$STATUS, waiting..."
+              sleep 15
+            done
+          """
         }
       }
     }
@@ -145,14 +177,8 @@ pipeline {
   }
 
   post {
-    success {
-      echo "Pipeline SUCCESS - Image deployed to ECS"
-    }
-    failure {
-      echo "Pipeline FAILED - Check Sonar/Snyk/Trivy results"
-    }
-    always {
-      cleanWs()
-    }
+    success { echo "Pipeline SUCCESS - Image deployed to ECS" }
+    failure { echo "Pipeline FAILED - Check Sonar/Snyk/Trivy results" }
+    always  { cleanWs() }
   }
 }
