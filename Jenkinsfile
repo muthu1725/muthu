@@ -1,9 +1,5 @@
 pipeline {
-  agent any
-
-  options {
-    disableConcurrentBuilds()
-    timestamps()
+  agent()  agent any
     buildDiscarder(logRotator(numToKeepStr: '10', daysToKeepStr: '7'))
   }
 
@@ -18,16 +14,20 @@ pipeline {
 
     REPO_NAME   = "week2-sample-app"
     ECR_REPO    = "102461617910.dkr.ecr.eu-west-1.amazonaws.com/ecs-rds-test-sample-app"
-    IMAGE_TAG   = "${BUILD_NUMBER}"
-    IMAGE_URI   = "${ECR_REPO}:${IMAGE_TAG}"
 
     ECS_CLUSTER = "ecs-rds-test-cluster"
     ECS_SERVICE = "ecs-rds-test-service"
 
+    IMAGE_TAG   = "${BUILD_NUMBER}"
+    IMAGE_URI   = "${ECR_REPO}:${IMAGE_TAG}"
+
     SONARQUBE_SERVER  = "sonar"
     SONAR_PROJECT_KEY = "week2-sample-app"
-    SONAR_URL         = "http://10.8.54.92:9000"
 
+    // SonarQube reachable from Jenkins EC2
+    SONAR_URL = "http://10.8.54.92:9000"
+
+    // Jenkins credentials IDs
     SONAR_TOKEN_CRED_ID = "squ_3833ea7189fe32152909d806de1880d49ac571f4"
     SNYK_TOKEN_CRED_ID  = "a0d93a0b-9393-471c-8e8a-9280d565abf5"
   }
@@ -68,6 +68,7 @@ pipeline {
       }
     }
 
+    // ✅ Quality Gate PASS/FAIL controlled by Jenkinsfile (Polling)
     stage('Quality Gate (Poll)') {
       steps {
         withCredentials([string(credentialsId: "${SONAR_TOKEN_CRED_ID}", variable: 'SONAR_TOKEN')]) {
@@ -114,15 +115,17 @@ pipeline {
       steps {
         sh '''
           set -e
+          docker version
           docker build -t ${IMAGE_URI} .
         '''
       }
     }
 
-    stage('Trivy Image Scan') {
+    stage('Trivy Image Scan (Fail if HIGH/CRITICAL)') {
       steps {
         sh '''
           set -e
+          trivy version
           trivy image --exit-code 1 --severity HIGH,CRITICAL ${IMAGE_URI}
         '''
       }
@@ -134,7 +137,6 @@ pipeline {
           set -e
           aws ecr get-login-password --region ${AWS_REGION} \
             | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-
           docker push ${IMAGE_URI}
         '''
       }
@@ -149,20 +151,18 @@ pipeline {
             --cluster ${ECS_CLUSTER} \
             --service ${ECS_SERVICE} \
             --force-new-deployment
+          echo "ECS deployment triggered"
         '''
       }
     }
   }
 
   post {
-    success {
-      echo "✅ Pipeline SUCCESS - Image deployed to ECS"
-    }
-    failure {
-      echo "❌ Pipeline FAILED - Check Sonar / Snyk / Trivy logs"
-    }
-    always {
-      cleanWs(notFailBuild: true)
-    }
+    success { echo "✅ Pipeline SUCCESS - Image deployed to ECS" }
+    failure { echo "❌ Pipeline FAILED - Check Sonar/Snyk/Trivy results" }
+    always  { cleanWs(notFailBuild: true) }
   }
 }
+
+  options {
+    disableConcurrentBuilds()
