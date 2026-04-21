@@ -32,7 +32,7 @@ pipeline {
     SONAR_URL = 'http://10.8.54.92:9000'
 
     // Jenkins credentials IDs (NOTE: these must be Jenkins Credential IDs)
-    SONAR_TOKEN_CRED_ID = 'squ_3833ea7189fe32152909d806de1880d49ac571f4'
+    SONAR_TOKEN_CRED_ID = 'sonarqube-token'
     SNYK_TOKEN_CRED_ID  = 'a0d93a0b-9393-471c-8e8a-9280d565abf5'
   }
 
