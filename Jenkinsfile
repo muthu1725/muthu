@@ -104,17 +104,29 @@ pipeline {
     }
 
     stage('Snyk Dependency Scan') {
-      steps {
-        withCredentials([string(credentialsId: "${SNYK_TOKEN_CRED_ID}", variable: 'SNYK_TOKEN')]) {
-          sh '''
-            set -e
-            snyk auth $SNYK_TOKEN
-            snyk test --severity-threshold=high
-          '''
-        }
-      }
-    }
+  steps {
+    withCredentials([
+      string(credentialsId: "${SNYK_TOKEN_CRED_ID}", variable: 'SNYK_TOKEN')
+    ]) {
+      sh '''
+        set -e
 
+        echo "Checking Python & pip..."
+        python3 --version
+        pip3 --version
+
+        echo "Installing Python dependencies..."
+        pip3 install -r requirements.txt
+
+        echo "Authenticating Snyk..."
+        snyk auth $SNYK_TOKEN
+
+        echo "Running Snyk scan (pip project)..."
+        snyk test --package-manager=pip --severity-threshold=high
+      '''
+    }
+  }
+}
     stage('Docker Build') {
       steps {
         sh '''
