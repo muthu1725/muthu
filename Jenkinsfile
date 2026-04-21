@@ -133,7 +133,7 @@ pipeline {
             --service ${ECS_SERVICE} \
             --force-new-deployment
 
-          echo "✅ ECS deployment triggered"
+          echo "ECS deployment triggered"
         '''
       }
     }
@@ -141,7 +141,7 @@ pipeline {
 
   post {
     success {
-      echo "✅ Pipeline SUCCESS – Image deployed to ECS"
+      echo "Pipeline SUCCESS – Image deployed to ECS"
     }
     failure {
       echo "❌ Pipeline FAILED – Check Sonar/Snyk/Trivy results"
