@@ -111,17 +111,25 @@ pipeline {
       sh '''
         set -e
 
-        echo "Checking Python & pip..."
+        echo "Python version:"
         python3 --version
-        pip3 --version
 
-        echo "Installing Python dependencies..."
-        pip3 install -r requirements.txt
+        echo "Creating Python virtual environment..."
+        python3 -m venv venv
 
-        echo "Authenticating Snyk..."
+        echo "Activating virtual environment..."
+        . venv/bin/activate
+
+        echo "Upgrading pip..."
+        pip install --upgrade pip
+
+        echo "Installing dependencies from requirements.txt..."
+        pip install -r requirements.txt
+
+        echo "Authenticating with Snyk..."
         snyk auth $SNYK_TOKEN
 
-        echo "Running Snyk scan (pip project)..."
+        echo "Running Snyk test for pip project..."
         snyk test --package-manager=pip --severity-threshold=high
       '''
     }
