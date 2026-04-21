@@ -13,26 +13,21 @@ pipeline {
   }
 
   environment {
-    AWS_REGION      = "eu-west-1"
-    AWS_ACCOUNT_ID  = "102461617910"
+    AWS_REGION     = "eu-west-1"
+    AWS_ACCOUNT_ID = "102461617910"
 
-    REPO_NAME       = "week2-sample-app"
-    ECR_REPO        = "102461617910.dkr.ecr.eu-west-1.amazonaws.com/ecs-rds-test-sample-app"
+    REPO_NAME   = "week2-sample-app"
+    ECR_REPO    = "102461617910.dkr.ecr.eu-west-1.amazonaws.com/ecs-rds-test-sample-app"
+    IMAGE_TAG   = "${BUILD_NUMBER}"
+    IMAGE_URI   = "${ECR_REPO}:${IMAGE_TAG}"
 
-    ECS_CLUSTER     = "ecs-rds-test-cluster"
-    ECS_SERVICE     = "ecs-rds-test-service"
+    ECS_CLUSTER = "ecs-rds-test-cluster"
+    ECS_SERVICE = "ecs-rds-test-service"
 
-    IMAGE_TAG       = "${BUILD_NUMBER}"
-    IMAGE_URI       = "${ECR_REPO}:${IMAGE_TAG}"
+    SONARQUBE_SERVER  = "sonar"
+    SONAR_PROJECT_KEY = "week2-sample-app"
+    SONAR_URL         = "http://10.8.54.92:9000"
 
-    // Jenkins "System" -> SonarQube server name
-    SONARQUBE_SERVER   = "sonar"
-    SONAR_PROJECT_KEY  = "week2-sample-app"
-
-    // SonarQube reachable from Jenkins EC2
-    SONAR_URL       = "http://10.8.54.92:9000"
-
-    // Jenkins Credentials IDs
     SONAR_TOKEN_CRED_ID = "squ_3833ea7189fe32152909d806de1880d49ac571f4"
     SNYK_TOKEN_CRED_ID  = "a0d93a0b-9393-471c-8e8a-9280d565abf5"
   }
@@ -40,7 +35,9 @@ pipeline {
   stages {
 
     stage('Checkout') {
-      steps { checkout scm }
+      steps {
+        checkout scm
+      }
     }
 
     stage('Build (Python)') {
@@ -71,7 +68,6 @@ pipeline {
       }
     }
 
-    // ✅ Quality Gate using Polling (No webhook dependency)
     stage('Quality Gate (Poll)') {
       steps {
         withCredentials([string(credentialsId: "${SONAR_TOKEN_CRED_ID}", variable: 'SONAR_TOKEN')]) {
@@ -82,18 +78,18 @@ pipeline {
                 RESP=\$(curl -s -u "\${SONAR_TOKEN}:" \
                   "${SONAR_URL}/api/qualitygates/project_status?projectKey=${SONAR_PROJECT_KEY}")
 
-                STATUS=\$(echo "\$RESP" | python3 -c 'import sys, json; print(json.load(sys.stdin)["projectStatus"]["status"])')
+                STATUS=\$(echo "\$RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin)["projectStatus"]["status"])')
 
                 if [ "\$STATUS" = "OK" ]; then
-                  echo "Quality Gate PASSED"
+                  echo "✅ Quality Gate PASSED"
                   break
                 elif [ "\$STATUS" = "ERROR" ]; then
-                  echo "Quality Gate FAILED"
+                  echo "❌ Quality Gate FAILED"
                   echo "\$RESP"
                   exit 1
                 fi
 
-                echo "Quality Gate still \$STATUS, waiting..."
+                echo "⏳ Quality Gate still \$STATUS, waiting..."
                 sleep 15
               done
             """
@@ -118,32 +114,15 @@ pipeline {
       steps {
         sh '''
           set -e
-          docker version
           docker build -t ${IMAGE_URI} .
         '''
       }
     }
 
-    stage('Install Trivy') {
+    stage('Trivy Image Scan') {
       steps {
         sh '''
           set -e
-          if ! command -v trivy &> /dev/null
-          then
-            echo "Installing Trivy..."
-            sudo rpm -ivh https://github.com/aquasecurity/trivy/releases/download/v0.50.1/trivy_0.50.1_Linux-64bit.rpm
-          else
-            echo "Trivy already installed"
-          fi
-        '''
-      }
-    }
-
-    stage('Trivy Image Scan (Fail if HIGH/CRITICAL)') {
-      steps {
-        sh '''
-          set -e
-          trivy version
           trivy image --exit-code 1 --severity HIGH,CRITICAL ${IMAGE_URI}
         '''
       }
@@ -170,8 +149,6 @@ pipeline {
             --cluster ${ECS_CLUSTER} \
             --service ${ECS_SERVICE} \
             --force-new-deployment
-
-          echo "ECS deployment triggered"
         '''
       }
     }
@@ -179,16 +156,13 @@ pipeline {
 
   post {
     success {
-      echo "Pipeline SUCCESS - Image deployed to ECS"
+      echo "✅ Pipeline SUCCESS - Image deployed to ECS"
     }
     failure {
-      echo "Pipeline FAILED - Check Sonar/Snyk/Trivy results"
+      echo "❌ Pipeline FAILED - Check Sonar / Snyk / Trivy logs"
     }
     always {
-      // Ensure workspace exists to avoid: hudson.FilePath is missing
-      node {
-        cleanWs(notFailBuild: true)
-      }
+      cleanWs(notFailBuild: true)
     }
   }
 }
