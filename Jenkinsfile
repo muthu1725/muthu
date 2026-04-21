@@ -28,7 +28,7 @@ pipeline {
     SONARQUBE_SERVER  = "sonarqube"
     SONAR_PROJECT_KEY = "week2-sample-app"
 
-    SNYK_TOKEN = credentials('snyk-token')
+    SNYK_TOKEN = "a0d93a0b-9393-471c-8e8a-9280d565abf5"
   }
 
   stages {
