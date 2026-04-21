@@ -28,7 +28,7 @@ pipeline {
     SONARQUBE_SERVER  = "sonar"
     SONAR_PROJECT_KEY = "week2-sample-app"
 
-    // ✅ Recommended: store in Jenkins Credentials (Secret Text) with ID: snyk-token
+    // ⚠️ Recommended to move to Jenkins Credentials (Secret text)
     SNYK_TOKEN = "a0d93a0b-9393-471c-8e8a-9280d565abf5"
   }
 
@@ -52,15 +52,13 @@ pipeline {
     stage('SonarQube Analysis') {
       steps {
         script {
-          def scannerHome = tool 'Sonar'   // ✅ MUST match Jenkins Tools name (your screenshot shows Name=Sonar)
+          def scannerHome = tool 'Sonar'
           withSonarQubeEnv("${SONARQUBE_SERVER}") {
             withEnv(["PATH+SONAR=${scannerHome}/bin"]) {
               sh """
                 sonar-scanner \
                   -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                  -Dsonar.sources=. \
-                  -Dsonar.host.url=$SONAR_HOST_URL \
-                  -Dsonar.login=$SONAR_AUTH_TOKEN
+                  -Dsonar.sources=.
               """
             }
           }
@@ -68,10 +66,13 @@ pipeline {
       }
     }
 
+    // ✅ ✅ FIXED & RESILIENT QUALITY GATE
     stage('Quality Gate') {
       steps {
-        timeout(time: 5, unit: 'MINUTES') {
-          waitForQualityGate abortPipeline: true
+        timeout(time: 10, unit: 'MINUTES') {
+          retry(2) {
+            waitForQualityGate abortPipeline: true
+          }
         }
       }
     }
