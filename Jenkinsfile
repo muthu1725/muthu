@@ -25,7 +25,7 @@ pipeline {
     IMAGE_TAG     = "${BUILD_NUMBER}"
     IMAGE_URI     = "${ECR_REPO}:${IMAGE_TAG}"
 
-    SONARQUBE_SERVER  = "sonarqube"
+    SONARQUBE_SERVER  = "sonar"
     SONAR_PROJECT_KEY = "week2-sample-app"
 
     SNYK_TOKEN = "a0d93a0b-9393-471c-8e8a-9280d565abf5"
